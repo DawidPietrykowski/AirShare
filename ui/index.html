@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body {
+
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+
+      /* font-family: Arial, sans-serif; */
+      background-color: rgb(2, 0, 6);
+      color: #fff;
+      text-align: center;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 20px;
+      margin: 10px 0px;
+      justify-content: center;
+    }
+
+    .button {
+      padding: 6px 16px;
+      border: 8px solid #fff;
+      background-color: #252129;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bolder;
+
+      border-radius: 5px;
+      transition: background 0.3s;
+      color: #fff;
+      border-radius: 25px;
+
+      background: linear-gradient(90deg, rgba(2, 0, 36, 1) 0%, rgba(9, 9, 121, 1) 79%, rgba(46, 29, 147, 1) 90%) left;
+      background-size: 200% 100%;
+    }
+
+    .accept {
+      border: 2px solid #06ff3095;
+    }
+
+    .decline {
+      border: 2px solid #a00000;
+    }
+
+    .button:hover {
+      background-position: right;
+    }
+
+    .info {
+      margin-top: 0px;
+      margin-left: 20px;
+      margin-right: 20px;
+      margin-bottom: 20px;
+    }
+
+    .info_header {
+      margin-top: 20px;
+      margin-bottom: 0px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h2 class="info_header">Incoming file</h2>
+    <div class="buttons" style="flex: content; flex-flow: row;">
+      <button id="accept" class="button accept">ACCEPT</button>
+      <button id="decline" class="button decline">DECLINE</button>
+    </div>
+    <div class="info">
+      <p style="font-size: small;" id="smalltext">User wants to send you file image.png</p>
+    </div>
+  </div>
+  <script>
+    const { invoke } = window.__TAURI__.tauri
+    const { appWindow } = window.__TAURI__.window
+    const { emit, event } = window.__TAURI__.event
+    document.getElementById('accept').addEventListener('click', () => {
+      appWindow.emit('confirmation-event', { message: 'accept' })
+
+    })
+    document.getElementById('decline').addEventListener('click', () => {
+      appWindow.emit('confirmation-event', { message: 'decline' })
+    })
+    applyText();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,11 @@
+version: "3.4"
+services:
+  service:
+    network_mode: host
+    image: hotspaghetti/airshare:latest
+    restart: unless-stopped
+    environment:
+      DEVICE_NAME: "Docker server"
+      DOWNLOAD_PATH: "/downloads"
+    volumes:
+      - ./tmp:/downloads
