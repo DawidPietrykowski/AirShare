@@ -23,6 +23,20 @@ use tauri::{
 };
 
 mod nearby_share;
+mod mdns;
+
+fn get_device_name() -> String {
+    env::var("DEVICE_NAME")
+        .unwrap_or(whoami::devicename())
+        .to_string()
+}
+
+fn get_server_port() -> u16 {
+    env::var("SERVER_PORT")
+    .unwrap_or("5200".to_string())
+    .parse::<u16>()
+    .unwrap()
+}
 
 #[cfg(feature = "tauri-app")]
 fn show_popup(device_name: &str, filename: &str, cl: &AppHandle) -> bool {
@@ -76,50 +90,21 @@ fn show_popup(device_name: &str, filename: &str, cl: &AppHandle) -> bool {
     res
 }
 
+
 #[cfg(feature = "tauri-app")]
 fn run_nearby_server(window: Arc<AppHandle>) {
-    use mdns_sd::{ServiceDaemon, ServiceInfo};
+    let port = get_server_port();
+    let device_name = get_device_name();
 
-    // Create a daemon
-    let mdns = ServiceDaemon::new().expect("Failed to create daemon");
-
-    // Create a service info.
-    let name = nearby_share::generate_name();
-    let device_name = env::var("DEVICE_NAME")
-        .unwrap_or(whoami::devicename())
-        .to_string();
-
-    let record =
-        nearby_share::generate_txt_record(device_name.clone(), nearby_share::DeviceType::LAPTOP);
-    let service_type = "_FC9F5ED42C8A._tcp.local.";
-    let instance_name = &*name;
-    let host_ipv4 = local_ip_address::local_ip().unwrap().to_string();
-    let host_name = format!("{}.local.", host_ipv4.clone());
-    let port = 5200;
-    let properties = [("n", record)];
-
-    let my_service = ServiceInfo::new(
-        service_type,
-        instance_name,
-        host_name.clone().as_str(),
-        host_ipv4.clone(),
-        port,
-        &properties[..],
-    )
-    .unwrap()
-    .enable_addr_auto();
-
-    // Register with the daemon, which publishes the service.
-    mdns.register(my_service)
-        .expect("Failed to register our service");
-
-    println!("Service registered at ip {}", host_ipv4);
-
-    let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
+    thread::spawn(move || {
+        mdns::run_mdns_server(device_name.clone(), port);
+    });
 
     let download_path = get_download_path();
     println!("Download path: {}", download_path.to_str().unwrap_or(""));
-    println!("Device name: {}", device_name);
+
+    let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
+    listener.take_error().unwrap();
 
     for stream in listener.incoming() {
         let mut str = stream.unwrap();
@@ -181,50 +166,23 @@ fn finish_notification(filename: &str) {
 
 #[cfg(feature = "docker")]
 fn run_docker_nearby_server() {
-    use mdns_sd::{ServiceDaemon, ServiceInfo};
-
-    // Create a daemon
-    let mdns = ServiceDaemon::new().expect("Failed to create daemon");
-
     // Create a service info.
-    let name = nearby_share::generate_name();
-    let device_name = env::var("DEVICE_NAME")
-        .unwrap_or(whoami::devicename())
-        .to_string();
+    let device_name = get_device_name();
+    let port = get_server_port();
 
-    let record =
-        nearby_share::generate_txt_record(device_name.clone(), nearby_share::DeviceType::LAPTOP);
-    let service_type = "_FC9F5ED42C8A._tcp.local.";
-    let instance_name = &*name;
-    let host_ipv4 = local_ip_address::local_ip().unwrap().to_string();
-    let host_name = format!("{}.local.", host_ipv4.clone());
-    let port = 5200;
-    let properties = [("n", record)];
+    println!("Device name: {}", device_name);
 
-    let my_service = ServiceInfo::new(
-        service_type,
-        instance_name,
-        host_name.clone().as_str(),
-        host_ipv4.clone(),
-        port,
-        &properties[..],
-    )
-    .unwrap()
-    .enable_addr_auto();
-
-    // Register with the daemon, which publishes the service.
-    mdns.register(my_service)
-        .expect("Failed to register our service");
-
-    println!("Service registered at ip {}", host_ipv4);
-
-    let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
+    thread::spawn(move || {
+        mdns::run_mdns_server(device_name.clone(), port);
+    });
 
     let download_path =
         Path::new::<String>(&env::var("DOWNLOAD_PATH").unwrap_or("/downloads".to_string()))
             .to_path_buf();
     println!("Download path: {:?}", download_path);
-    println!("Device name: {}", device_name);
+
+    let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
+    listener.take_error().unwrap();
 
     for stream in listener.incoming() {
         let mut str = stream.unwrap();
@@ -292,4 +250,31 @@ fn main() {
     }
     #[cfg(feature = "docker")]
     run_docker_nearby_server();
+    #[cfg(not(any(feature = "tauri-app", feature = "docker")))]
+    println!("Unless testing development enable one of the features: tauri-app, docker");
+    #[cfg(not(any(feature = "tauri-app", feature = "docker")))]
+    {
+        // Get port and device name
+        let port = get_server_port();
+        let device_name = get_device_name();
+
+        // Start tcp server
+        let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
+        listener.take_error().unwrap();
+
+        // Start mdns
+        thread::spawn(move || {
+            mdns::run_mdns_server(device_name.clone(), port);
+        });
+
+        // Run server
+        for stream in listener.incoming() {
+            let mut str = stream.unwrap();
+            println!("New connection from address: {}", str.peer_addr().unwrap());
+            let path = Path::new("tmp").to_path_buf();
+            thread::spawn(move || {
+                let _ = nearby_share::handle_client_init(&mut str, path, |_, _| true);
+            });
+        }
+    }
 }

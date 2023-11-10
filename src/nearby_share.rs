@@ -108,8 +108,7 @@ pub fn handle_client_init(
 
     let device_name_len = endpoint_info[17];
     let raw_device_type = endpoint_info[0] & 7;
-    let device_type = DeviceType::try_from(raw_device_type as i32).unwrap_or(DeviceType::Unknown);
-    println!("Device type {:?}", device_type);
+    let _device_type = DeviceType::try_from(raw_device_type as i32).unwrap_or(DeviceType::Unknown);
 
     let sending_device_name = String::from_utf8(
         endpoint_info
@@ -330,10 +329,12 @@ pub fn handle_client_init(
                 }
                 PayloadType::File => {
                     println!("Received file {}\n", incoming_file_name);
-                    use std::fs::File;
                     use std::io::prelude::*;
 
-                    let mut file = File::create(download_path.join(incoming_file_name)).unwrap();
+                    if !download_path.exists() {
+                        std::fs::create_dir_all(&download_path).unwrap();
+                    }
+                    let mut file = std::fs::File::create(download_path.join(incoming_file_name)).unwrap();
                     file.write_all(filebuffer.as_slice()).unwrap();
 
                     break;
